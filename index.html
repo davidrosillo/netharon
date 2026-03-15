@@ -580,46 +580,7 @@
     #login-btn:hover { background: var(--gold); color: var(--bg); }
     #login-btn:active { transform: scale(0.98); }
 
-    /* ── SETUP SCREEN ───────────────────────────────────── */
-    #setup-screen {
-      max-width: 520px;
-      margin: 6rem auto;
-      padding: 2rem;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-    }
-    #setup-screen h2 {
-      font-family: 'Cinzel', serif;
-      color: var(--gold);
-      font-size: 1.1rem;
-      margin-bottom: 0.5rem;
-      letter-spacing: 0.1em;
-    }
-    #setup-screen p {
-      font-size: 0.85rem;
-      color: var(--text-dim);
-      margin-bottom: 1.5rem;
-      line-height: 1.6;
-    }
-    #setup-screen .field-label { margin-top: 1rem; }
-    #setup-screen .setup-btn {
-      width: 100%;
-      margin-top: 1.5rem;
-      padding: 10px;
-      font-size: 0.75rem;
-      font-family: 'Courier New', monospace;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      cursor: pointer;
-      border: 1px solid var(--gold);
-      background: none;
-      color: var(--gold);
-      border-radius: var(--radius);
-      transition: all 0.2s;
-    }
-    #setup-screen .setup-btn:hover { background: var(--gold); color: var(--bg); }
-    #setup-error { font-size: 0.75rem; color: var(--red); font-family: 'Courier New', monospace; margin-top: 8px; display: none; }
+
 
     /* ── RESPONSIVE ─────────────────────────────────────── */
     @media (max-width: 600px) {
@@ -646,17 +607,7 @@
   <button id="login-btn" onclick="doLogin()">Acceder →</button>
 </div>
 
-<!-- SETUP SCREEN (shown when Supabase not configured) -->
-<div id="setup-screen" style="display:none">
-  <h2>⬡ Configuración inicial</h2>
-  <p>Introduce las credenciales de tu proyecto Supabase para activar la sincronización en la nube. Solo necesitas hacerlo una vez — quedarán guardadas en este navegador.</p>
-  <div class="field-label">Supabase URL</div>
-  <input type="text" id="setup-url" placeholder="https://xxxxxxxxxxxx.supabase.co">
-  <div class="field-label">Supabase Anon Key</div>
-  <input type="text" id="setup-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
-  <div id="setup-error">Error al conectar. Verifica las credenciales.</div>
-  <button class="setup-btn" onclick="saveSetup()">Conectar y guardar →</button>
-</div>
+
 
 <!-- MAIN APP -->
 <div id="app" style="display:none">
@@ -673,12 +624,14 @@
     <button class="tab" onclick="switchTab('rondas',this)">Rondas</button>
     <button class="tab" onclick="switchTab('reputacion',this)">Reputación</button>
     <button class="tab" onclick="switchTab('recompensas',this)">Recompensas</button>
+    <button class="tab" onclick="switchTab('ranking',this)">Ranking</button>
   </div>
 
   <div class="panel active" id="panel-resumen"></div>
   <div class="panel" id="panel-rondas"></div>
   <div class="panel" id="panel-reputacion"></div>
   <div class="panel" id="panel-recompensas"></div>
+  <div class="panel" id="panel-ranking"></div>
 </div>
 
 <script>
@@ -839,39 +792,9 @@ const MATCHES = [
 // SUPABASE
 // ═══════════════════════════════════════════════════════════
 const STORAGE_KEY = 'netharon_state';
-let sbClient = null;
-
-function getCredentials() {
-  return {
-    url: localStorage.getItem('sb_url'),
-    key: localStorage.getItem('sb_key'),
-  };
-}
-
-function initSupabase(url, key) {
-  sbClient = window.supabase.createClient(url, key);
-}
-
-async function saveSetup() {
-  const url = document.getElementById('setup-url').value.trim();
-  const key = document.getElementById('setup-key').value.trim();
-  document.getElementById('setup-error').style.display = 'none';
-  if (!url || !key) return;
-  try {
-    initSupabase(url, key);
-    // test connection
-    const { error } = await sbClient.from('campaign').select('key').limit(1);
-    if (error && error.code !== 'PGRST116') throw error;
-    localStorage.setItem('sb_url', url);
-    localStorage.setItem('sb_key', key);
-    document.getElementById('setup-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-    await loadState();
-  } catch(e) {
-    document.getElementById('setup-error').style.display = 'block';
-    console.error(e);
-  }
-}
+const SB_URL = 'https://hqdybmjmjfiabfyonlyj.supabase.co';
+const SB_KEY = 'sb_publishable_5Hk2LS-MrR2b7-fCb3qjwA_6uZghUnR';
+const sbClient = window.supabase.createClient(SB_URL, SB_KEY);
 
 let saveTimer = null;
 function setSyncStatus(s, msg) {
@@ -933,7 +856,7 @@ function switchTab(id, btn) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('panel-'+id).classList.add('active');
-  const renders = { resumen: renderResumen, rondas: () => renderRondas(state.activeRound), reputacion: renderReputacion, recompensas: renderRecompensas };
+  const renders = { resumen: renderResumen, rondas: () => renderRondas(state.activeRound), reputacion: renderReputacion, recompensas: renderRecompensas, ranking: renderRanking };
   renders[id]?.();
 }
 
@@ -1260,6 +1183,69 @@ function renderRecompensas() {
   </div>`;
 }
 
+// ═══════════════════════════════════════════════════════════
+// RENDER — RANKING
+// ═══════════════════════════════════════════════════════════
+function renderRanking() {
+  const ranked = Object.entries(FACTIONS).map(([k, f]) => {
+    const pv = calcPV(k);
+    const rep = state.reputation[k] || [0,0,0];
+    const repNet = rep.reduce((a,b)=>a+b,0);
+    const rew = state.rewards.filter(r=>r.faction===k).length;
+    const confirmed = Object.entries(state.matches)
+      .filter(([,m]) => m.confirmed && (m['pv_'+k] !== undefined))
+      .length;
+    return { k, f, pv, repNet, rew, confirmed };
+  }).sort((a,b) => b.pv - a.pv || b.repNet - a.repNet);
+
+  const maxPV = Math.max(...ranked.map(r=>r.pv), 1);
+
+  const rows = ranked.map((r, i) => {
+    const medal = ['🥇','🥈','🥉'][i] || '';
+    const barW = Math.round((r.pv / maxPV) * 100);
+    const isFirst = i === 0 && r.pv > 0;
+    return `<div style="background:var(--surface);border:1px solid ${isFirst ? r.f.color+'60' : 'var(--border)'};border-radius:var(--radius);padding:1.25rem;margin-bottom:0.75rem;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:0.875rem;">
+        <div style="font-family:'Courier New',monospace;font-size:1.4rem;color:var(--text-faint);width:32px;text-align:center;flex-shrink:0;">${i+1}</div>
+        <div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;border:1px solid ${r.f.color}30;border-radius:var(--radius);flex-shrink:0;color:${r.f.color}">${r.f.icon}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:'Cinzel',serif;font-size:0.85rem;color:${r.f.color};letter-spacing:0.04em">${r.f.name}</div>
+          <div style="font-size:0.65rem;color:var(--text-dim);font-family:'Courier New',monospace;margin-top:1px">${r.f.player}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:1.75rem;font-family:'Courier New',monospace;color:${r.f.color};line-height:1">${r.pv}</div>
+          <div style="font-size:0.6rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;font-family:'Courier New',monospace">PV</div>
+        </div>
+      </div>
+      <div style="height:4px;background:var(--border);border-radius:2px;margin-bottom:0.75rem;">
+        <div style="height:100%;width:${barW}%;background:${r.f.color};border-radius:2px;transition:width 0.5s ease;"></div>
+      </div>
+      <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
+        <div>
+          <div style="font-size:0.85rem;font-family:'Courier New',monospace;color:${r.repNet>=0?'#2ecc71':'#c0392b'}">${r.repNet>=0?'+':''}${r.repNet}</div>
+          <div style="font-size:0.6rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;font-family:'Courier New',monospace">Rep. neta</div>
+        </div>
+        <div>
+          <div style="font-size:0.85rem;font-family:'Courier New',monospace;color:var(--text-dim)">${r.rew}</div>
+          <div style="font-size:0.6rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;font-family:'Courier New',monospace">Recompensas</div>
+        </div>
+        <div>
+          <div style="font-size:0.85rem;font-family:'Courier New',monospace;color:var(--text-dim)">${r.confirmed}</div>
+          <div style="font-size:0.6rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;font-family:'Courier New',monospace">Partidas</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const noPV = ranked.every(r => r.pv === 0);
+  document.getElementById('panel-ranking').innerHTML = noPV
+    ? '<div class="empty-state">Sin datos aún.<br>Confirma los resultados de al menos una partida para ver el ranking.</div>'
+    : `<div style="margin-bottom:1.25rem;">
+        <div style="font-family:'Cinzel',serif;font-size:1rem;color:var(--gold);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.25rem;">Clasificación general</div>
+        <div style="font-size:0.7rem;color:var(--text-dim);font-family:'Courier New',monospace;">Ordenado por PV acumulados · empates resueltos por reputación neta</div>
+      </div>${rows}`;
+}
+
 function removeReward(id) {
   state.rewards = state.rewards.filter(r=>r.id!==id);
   saveState();
@@ -1291,8 +1277,9 @@ async function doLogin() {
   if (simpleHash(PASS_SALT + val) === PASS_CHECK) {
     sessionStorage.setItem(SESSION_KEY, '1');
     document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
     err.textContent = '';
-    proceedAfterAuth();
+    loadState();
   } else {
     document.getElementById('login-input').value = '';
     err.textContent = 'Contraseña incorrecta.';
@@ -1307,21 +1294,11 @@ function isAuthed() {
 // ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
-function proceedAfterAuth() {
-  const creds = getCredentials();
-  if (creds.url && creds.key) {
-    initSupabase(creds.url, creds.key);
-    document.getElementById('app').style.display = 'block';
-    loadState();
-  } else {
-    document.getElementById('setup-screen').style.display = 'block';
-  }
-}
-
 (function init() {
   if (isAuthed()) {
     document.getElementById('login-screen').style.display = 'none';
-    proceedAfterAuth();
+    document.getElementById('app').style.display = 'block';
+    loadState();
   } else {
     setTimeout(() => document.getElementById('login-input').focus(), 100);
   }

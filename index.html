@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>La Fractura de Netharon — Centro de Mando</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    /* ── TOKENS ─────────────────────────────────────────── */
+    :root {
+      --bg:        #09090b;
+      --surface:   #111114;
+      --surface2:  #18181c;
+      --border:    #27272f;
+      --border2:   #3a3a46;
+      --gold:      #c9a84c;
+      --gold-dim:  #7a5e20;
+      --gold-glow: rgba(201,168,76,0.12);
+      --text:      #e2ddd4;
+      --text-dim:  #7a7570;
+      --text-faint:#3d3d44;
+      --green:     #2ecc71;
+      --red:       #c0392b;
+      --purple:    #9b59b6;
+      --teal:      #1ab8a0;
+      --blue:      #3498db;
+      --ork:       #6abf6a;
+      --radius:    4px;
+    }
+
+    /* ── RESET & BASE ───────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Crimson Text', Georgia, serif;
+      font-size: 1rem;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* subtle grain overlay */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0; opacity: 0.35;
+    }
+
+    /* ── LAYOUT ─────────────────────────────────────────── */
+    #app { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+    /* ── HEADER ─────────────────────────────────────────── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    header h1 {
+      font-family: 'Cinzel', serif;
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: var(--gold);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      line-height: 1.2;
+    }
+    header p {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-family: 'Courier New', monospace;
+      letter-spacing: 0.06em;
+      margin-top: 4px;
+    }
+    #sync-status {
+      font-size: 0.7rem;
+      font-family: 'Courier New', monospace;
+      padding: 5px 12px;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+      align-self: flex-start;
+      margin-top: 4px;
+      transition: all 0.3s;
+    }
+    #sync-status.saving { color: var(--gold); border-color: var(--gold-dim); }
+    #sync-status.saved  { color: var(--green); border-color: rgba(46,204,113,0.4); }
+    #sync-status.error  { color: var(--red);   border-color: rgba(192,57,43,0.4); }
+
+    /* ── TABS ───────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .tab {
+      padding: 9px 20px;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      color: var(--text-dim);
+      border: none;
+      background: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      white-space: nowrap;
+      transition: color 0.2s;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+    .panel { display: none; }
+    .panel.active { display: block; animation: fadeIn 0.2s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+    /* ── CARDS ──────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 1.25rem;
+      border-radius: var(--radius);
+    }
+    .card + .card { margin-top: 1rem; }
+
+    /* ── STATS GRID ─────────────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1.75rem;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 1rem 1.125rem;
+      border-radius: var(--radius);
+    }
+    .stat-value {
+      font-size: 1.75rem;
+      font-family: 'Courier New', monospace;
+      color: var(--gold);
+      line-height: 1;
+    }
+    .stat-label {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 5px;
+      font-family: 'Courier New', monospace;
+    }
+
+    /* ── FACTION GRID ───────────────────────────────────── */
+    .faction-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 1rem;
+    }
+    .faction-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 1.125rem;
+      border-radius: var(--radius);
+      transition: border-color 0.2s;
+    }
+    .faction-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 0.875rem;
+    }
+    .faction-icon {
+      width: 34px; height: 34px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      flex-shrink: 0;
+    }
+    .faction-name { font-family: 'Cinzel', serif; font-size: 0.85rem; letter-spacing: 0.05em; }
+    .faction-player { font-size: 0.7rem; color: var(--text-dim); font-family: 'Courier New', monospace; margin-top: 1px; }
+    .faction-stats { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 6px; }
+    .faction-stat-val { font-size: 1.25rem; font-family: 'Courier New', monospace; line-height: 1; }
+    .faction-stat-lbl { font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; font-family: 'Courier New', monospace; }
+
+    /* ── ROUND TABS ─────────────────────────────────────── */
+    .round-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .round-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1rem;
+      color: var(--gold);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .round-tabs { display: flex; gap: 4px; }
+    .round-tab {
+      padding: 5px 14px;
+      font-size: 0.7rem;
+      font-family: 'Courier New', monospace;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: none;
+      color: var(--text-dim);
+      letter-spacing: 0.06em;
+      border-radius: var(--radius);
+      transition: all 0.15s;
+    }
+    .round-tab:hover { border-color: var(--border2); color: var(--text); }
+    .round-tab.active { background: var(--gold); color: var(--bg); border-color: var(--gold); font-weight: bold; }
+
+    /* ── MATCH CARD ─────────────────────────────────────── */
+    .match-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 1.25rem;
+      border-radius: var(--radius);
+      margin-bottom: 1rem;
+    }
+    .match-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 1rem;
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-family: 'Courier New', monospace;
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .badge {
+      font-size: 0.6rem;
+      padding: 2px 8px;
+      border-radius: 2px;
+      letter-spacing: 0.06em;
+      font-family: 'Courier New', monospace;
+    }
+    .badge-gold { background: rgba(201,168,76,0.12); color: var(--gold); border: 1px solid rgba(201,168,76,0.3); }
+    .badge-special { background: rgba(155,89,182,0.12); color: var(--purple); border: 1px solid rgba(155,89,182,0.3); }
+
+    .match-players {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 10px;
+      align-items: start;
+      margin-bottom: 0;
+    }
+    .player-block {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 0.875rem;
+      border-radius: var(--radius);
+    }
+    .player-name { font-family: 'Cinzel', serif; font-size: 0.8rem; letter-spacing: 0.04em; }
+    .player-role { font-size: 0.65rem; color: var(--text-dim); font-family: 'Courier New', monospace; margin-top: 2px; }
+    .pv-pill {
+      display: inline-block;
+      font-family: 'Courier New', monospace;
+      font-size: 0.7rem;
+      color: var(--gold);
+      border: 1px solid rgba(201,168,76,0.35);
+      padding: 2px 8px;
+      border-radius: 2px;
+      margin-top: 8px;
+    }
+
+    .vs-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 12px;
+      gap: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.65rem;
+      color: var(--text-faint);
+    }
+
+    /* select / form elements */
+    .field-label {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      font-family: 'Courier New', monospace;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin: 10px 0 4px;
+    }
+    select, input {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      font-size: 0.75rem;
+      font-family: 'Courier New', monospace;
+      border-radius: var(--radius);
+      cursor: pointer;
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+    select:focus, input:focus { border-color: var(--gold-dim); }
+    select option { background: var(--surface2); }
+
+    /* objectives */
+    .obj-section {
+      border-top: 1px solid var(--border);
+      padding-top: 1rem;
+      margin-top: 1rem;
+    }
+    .obj-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .obj-btn {
+      padding: 5px 12px;
+      font-size: 0.7rem;
+      font-family: 'Courier New', monospace;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: none;
+      color: var(--text-dim);
+      letter-spacing: 0.04em;
+      border-radius: var(--radius);
+      transition: all 0.15s;
+    }
+    .obj-btn:hover:not(.achieved):not(:disabled) { border-color: var(--border2); color: var(--text); }
+    .obj-btn.achieved { background: var(--gold); color: var(--bg); border-color: var(--gold); font-weight: bold; }
+    .obj-btn.special-obj { border-color: rgba(155,89,182,0.4); color: var(--purple); }
+    .obj-btn.special-obj.achieved { background: var(--purple); color: #fff; border-color: var(--purple); }
+    .obj-btn:disabled { opacity: 0.5; cursor: default; }
+
+    /* reward preview */
+    .reward-preview {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      border-radius: var(--radius);
+      font-size: 0.72rem;
+      font-family: 'Courier New', monospace;
+      line-height: 1.7;
+      margin-top: 10px;
+    }
+    .rp-label-p { color: var(--gold); }
+    .rp-label-s { color: var(--text-dim); }
+
+    /* special note */
+    .note-box {
+      background: var(--gold-glow);
+      border: 1px solid rgba(201,168,76,0.2);
+      border-left: 3px solid var(--gold);
+      padding: 8px 12px;
+      font-size: 0.75rem;
+      color: var(--gold);
+      font-family: 'Courier New', monospace;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin-bottom: 1rem;
+      line-height: 1.5;
+    }
+
+    /* confirm button */
+    .confirm-btn {
+      width: 100%;
+      margin-top: 1rem;
+      padding: 9px;
+      font-size: 0.72rem;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border: 1px solid var(--gold);
+      background: none;
+      color: var(--gold);
+      border-radius: var(--radius);
+      transition: all 0.2s;
+    }
+    .confirm-btn:hover { background: var(--gold); color: var(--bg); }
+    .confirm-btn.danger { border-color: var(--red); color: var(--red); margin-top: 6px; }
+    .confirm-btn.danger:hover { background: var(--red); color: #fff; }
+    .confirmed-banner {
+      text-align: center;
+      padding: 7px;
+      font-size: 0.7rem;
+      font-family: 'Courier New', monospace;
+      color: var(--green);
+      border: 1px solid rgba(46,204,113,0.3);
+      border-radius: var(--radius);
+      margin-top: 1rem;
+      letter-spacing: 0.1em;
+    }
+
+    /* ── REPUTATION ─────────────────────────────────────── */
+    .rep-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .rep-name { font-size: 0.75rem; width: 150px; flex-shrink: 0; font-family: 'Crimson Text', serif; }
+    .rep-bar {
+      flex: 1;
+      height: 5px;
+      background: var(--border);
+      position: relative;
+      border-radius: 2px;
+    }
+    .rep-center {
+      position: absolute;
+      left: 50%; top: -3px;
+      width: 1px; height: 11px;
+      background: var(--border2);
+    }
+    .rep-fill {
+      height: 100%;
+      position: absolute;
+      border-radius: 2px;
+      transition: width 0.3s;
+    }
+    .rep-val {
+      font-size: 0.7rem;
+      font-family: 'Courier New', monospace;
+      min-width: 28px;
+      text-align: right;
+    }
+    .rep-btns { display: flex; gap: 3px; }
+    .rep-btn {
+      width: 22px; height: 22px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: none;
+      color: var(--text-dim);
+      font-size: 14px;
+      line-height: 1;
+      border-radius: 2px;
+      transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .rep-btn:hover { border-color: var(--border2); color: var(--text); }
+
+    /* ── REWARDS ────────────────────────────────────────── */
+    .rewards-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .reward-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 1rem 1.125rem;
+      border-radius: var(--radius);
+    }
+    .reward-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .reward-faction { font-family: 'Cinzel', serif; font-size: 0.8rem; letter-spacing: 0.04em; }
+    .reward-meta { font-size: 0.65rem; color: var(--text-dim); font-family: 'Courier New', monospace; }
+    .reward-directive { font-size: 0.7rem; color: var(--text-dim); font-family: 'Courier New', monospace; margin-bottom: 6px; }
+    .reward-type {
+      display: inline-block;
+      padding: 2px 9px;
+      font-size: 0.65rem;
+      font-family: 'Courier New', monospace;
+      border-radius: 2px;
+      margin-bottom: 6px;
+    }
+    .rt-principal { background: rgba(201,168,76,0.12); color: var(--gold); border: 1px solid rgba(201,168,76,0.3); }
+    .rt-secundario { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+    .rt-especial { background: rgba(155,89,182,0.12); color: var(--purple); border: 1px solid rgba(155,89,182,0.3); }
+    .reward-text { font-size: 0.85rem; color: var(--text); line-height: 1.5; }
+    .remove-btn {
+      margin-top: 8px;
+      padding: 3px 10px;
+      font-size: 0.65rem;
+      font-family: 'Courier New', monospace;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: none;
+      color: var(--text-faint);
+      border-radius: var(--radius);
+      transition: all 0.15s;
+    }
+    .remove-btn:hover { border-color: var(--red); color: var(--red); }
+
+    /* ── UTILS ──────────────────────────────────────────── */
+    .sep { height: 1px; background: var(--border); margin: 1.5rem 0; }
+    .empty-state {
+      text-align: center;
+      padding: 2.5rem;
+      color: var(--text-dim);
+      font-size: 0.8rem;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 0.08em;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      line-height: 2;
+    }
+    .section-label {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-family: 'Courier New', monospace;
+      margin-bottom: 8px;
+    }
+
+    /* ── LOGIN SCREEN ───────────────────────────────────── */
+    #login-screen {
+      max-width: 420px;
+      margin: 8rem auto 0;
+      padding: 2.5rem 2rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      text-align: center;
+    }
+    #login-screen .login-sigil {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      display: block;
+      opacity: 0.6;
+    }
+    #login-screen h2 {
+      font-family: 'Cinzel', serif;
+      color: var(--gold);
+      font-size: 1rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 0.4rem;
+    }
+    #login-screen p {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-bottom: 2rem;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 0.04em;
+    }
+    #login-input {
+      text-align: center;
+      letter-spacing: 0.15em;
+      font-size: 0.9rem;
+    }
+    #login-error {
+      font-size: 0.7rem;
+      color: var(--red);
+      font-family: 'Courier New', monospace;
+      margin-top: 8px;
+      min-height: 1.2em;
+      letter-spacing: 0.06em;
+    }
+    #login-btn {
+      width: 100%;
+      margin-top: 1.25rem;
+      padding: 10px;
+      font-size: 0.75rem;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border: 1px solid var(--gold);
+      background: none;
+      color: var(--gold);
+      border-radius: var(--radius);
+      transition: all 0.2s;
+    }
+    #login-btn:hover { background: var(--gold); color: var(--bg); }
+    #login-btn:active { transform: scale(0.98); }
+
+    /* ── SETUP SCREEN ───────────────────────────────────── */
+    #setup-screen {
+      max-width: 520px;
+      margin: 6rem auto;
+      padding: 2rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    #setup-screen h2 {
+      font-family: 'Cinzel', serif;
+      color: var(--gold);
+      font-size: 1.1rem;
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.1em;
+    }
+    #setup-screen p {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      margin-bottom: 1.5rem;
+      line-height: 1.6;
+    }
+    #setup-screen .field-label { margin-top: 1rem; }
+    #setup-screen .setup-btn {
+      width: 100%;
+      margin-top: 1.5rem;
+      padding: 10px;
+      font-size: 0.75rem;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border: 1px solid var(--gold);
+      background: none;
+      color: var(--gold);
+      border-radius: var(--radius);
+      transition: all 0.2s;
+    }
+    #setup-screen .setup-btn:hover { background: var(--gold); color: var(--bg); }
+    #setup-error { font-size: 0.75rem; color: var(--red); font-family: 'Courier New', monospace; margin-top: 8px; display: none; }
+
+    /* ── RESPONSIVE ─────────────────────────────────────── */
+    @media (max-width: 600px) {
+      #app { padding: 1rem 1rem 3rem; }
+      header h1 { font-size: 1rem; }
+      .match-players { grid-template-columns: 1fr; }
+      .vs-col { flex-direction: row; padding: 0; justify-content: center; }
+      .faction-grid { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .rep-name { width: 110px; font-size: 0.7rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen" style="display:none">
+  <span class="login-sigil">⬡</span>
+  <h2>La Fractura de Netharon</h2>
+  <p>Centro de Mando — Acceso restringido</p>
+  <input type="password" id="login-input" placeholder="· · · · · · · · · · · ·"
+    onkeydown="if(event.key==='Enter') doLogin()">
+  <div id="login-error"></div>
+  <button id="login-btn" onclick="doLogin()">Acceder →</button>
+</div>
+
+<!-- SETUP SCREEN (shown when Supabase not configured) -->
+<div id="setup-screen" style="display:none">
+  <h2>⬡ Configuración inicial</h2>
+  <p>Introduce las credenciales de tu proyecto Supabase para activar la sincronización en la nube. Solo necesitas hacerlo una vez — quedarán guardadas en este navegador.</p>
+  <div class="field-label">Supabase URL</div>
+  <input type="text" id="setup-url" placeholder="https://xxxxxxxxxxxx.supabase.co">
+  <div class="field-label">Supabase Anon Key</div>
+  <input type="text" id="setup-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+  <div id="setup-error">Error al conectar. Verifica las credenciales.</div>
+  <button class="setup-btn" onclick="saveSetup()">Conectar y guardar →</button>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" style="display:none">
+  <header>
+    <div>
+      <h1>⬡ La Fractura de Netharon — Centro de Mando</h1>
+      <p>Campaña narrativa · Ronda activa: <span id="active-round-display">1</span> / 4</p>
+    </div>
+    <div id="sync-status" class="sync-indicator">inicializando...</div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('resumen',this)">Resumen</button>
+    <button class="tab" onclick="switchTab('rondas',this)">Rondas</button>
+    <button class="tab" onclick="switchTab('reputacion',this)">Reputación</button>
+    <button class="tab" onclick="switchTab('recompensas',this)">Recompensas</button>
+  </div>
+
+  <div class="panel active" id="panel-resumen"></div>
+  <div class="panel" id="panel-rondas"></div>
+  <div class="panel" id="panel-reputacion"></div>
+  <div class="panel" id="panel-recompensas"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════
+const FACTIONS = {
+  PI:  { name:"Puños Imperiales",          player:"Capitán Ernest Sedirae",        icon:"⚒", color:"#c9a84c",
+         advisors:["Capellán Mordren","Tecnomarine Torvak","Teniente Androm"] },
+  OR:  { name:"Brooooomka Morka",           player:"Grashnak / Dregfang Hidegore",  icon:"💀", color:"#6abf6a",
+         advisors:["Urgbak Rompekráneoz","Mekboy Buzzgob","Gizwort"] },
+  NL:  { name:"Los Rapax (Night Lords)",    player:"Kael Varzeth",                  icon:"☽", color:"#9b59b6",
+         advisors:["Magister Veyl","Apotecario Venn","Navegante Harrow"] },
+  TAU: { name:"Horizonte Silencioso (T'au)",player:"Shas'o Kais",                  icon:"◈", color:"#1ab8a0",
+         advisors:["Shas'vre Vash'ya","Shas'vre Shi'ur","Shas'vre Kor'vesa"] },
+  UM:  { name:"15.ª Sección de Ischara",    player:"Capitán Valentus Cassandar",    icon:"✦", color:"#3498db",
+         advisors:["Teniente Voss","Comisario Thenn","Inquisidora Vel'Sharen"] },
+};
+
+const MATCHES = [
+  {
+    id:"R1M1", round:1, label:"Mesa 1",
+    f1:"PI", f1info: FACTIONS.PI,
+    f2:"OR", f2info: FACTIONS.OR,
+    dirs:{
+      PI:[
+        {label:"I — El Muro que no Cede (Mordren)",          adv:0,opp:2,prin:"A",sec:"B"},
+        {label:"II — El Bastión del Constructor (Torvak)",   adv:1,opp:0,prin:"B",sec:"C"},
+        {label:"III — Ninguno en Pie (Androm)",              adv:2,opp:1,prin:"C",sec:"A"},
+      ],
+      OR:[
+        {label:"I — ¡Romperle la Kara al Jefe! (Urgbak)",   adv:0,opp:1,prin:"C",sec:"A"},
+        {label:"II — Toda eza Chatarra va a Zer Mía (Buzzgob)",adv:1,opp:2,prin:"B",sec:"C"},
+        {label:"III — Mandar la Zeñal (Gizwort)",            adv:2,opp:0,prin:"A",sec:"B"},
+      ],
+    },
+    objs:{
+      PI:[{k:"A",t:"Mantener la antena"},{k:"B",t:"Frenar el avance orko"},{k:"C",t:"Aniquilar la avanzadilla"}],
+      OR:[{k:"A",t:"Capturar la antena"},{k:"B",t:"Cruzar al complejo"},{k:"C",t:"Combate singular"}],
+    },
+    rewards:{
+      PI:{
+        "0-A":"Core Unit / Hero hasta 275 pts (coordinación con guarniciones imperiales)",
+        "0-B":"Light Vehicle hasta 225 pts (transporte adicional autorizado)",
+        "1-B":"Vehicle / Light Vehicle hasta 400 pts (proyectos de Torvak)",
+        "1-C":"1 barrera desplegable 8\" (Scout) — unidades en cobertura ganan +1 a disparar sin mover",
+        "2-C":"3 barreras desplegables 8\" (Scout) + 100 pts mejoras de unidades existentes",
+        "2-A":"Core Unit / Hero hasta 250 pts (refuerzos de otras guarniciones)",
+      },
+      OR:{
+        "0-C":"Habilidad permanente ¡El Jefe Máz Grande! (todas las unidades amigas a 12\" del Warboss +1 Moral) + 150 pts mejoras de unidades",
+        "0-A":"Core Units / Heroes hasta 250 pts (refuerzos de la Brooooomka Morka)",
+        "1-B":"Vehicles / Light Vehicles hasta 400 pts (saqueo del complejo industrial)",
+        "1-C":"Habilidad permanente ¡El Jefe Máz Grande! (+1 Moral a 12\" del Warboss)",
+        "2-A":"Core Units / Heroes hasta 275 pts — unidad de mayor coste debe ser Gretchin",
+        "2-B":"Light Vehicles / Vehicles hasta 225 pts (materiales del complejo)",
+      },
+    }
+  },
+  {
+    id:"R1M2", round:1, label:"Mesa 2",
+    f1:"NL", f1info: FACTIONS.NL,
+    f2:"TAU", f2info: FACTIONS.TAU,
+    dirs:{
+      NL:[
+        {label:"El Ritual debe Completarse (Magister Veyl)", adv:0,opp:2,prin:"A",sec:"B"},
+        {label:"Recursos Primero (Apotecario Venn)",         adv:1,opp:0,prin:"B",sec:"C"},
+        {label:"Asegurar lo Nuestro (Navegante Harrow)",     adv:2,opp:1,prin:"C",sec:"A"},
+      ],
+      TAU:[
+        {label:"Protocolo Mont'ka — Golpe Decisivo (Vash'ya)",        adv:0,opp:1,prin:"A",sec:"B"},
+        {label:"Protocolo Tau'va — El Bien Superior (Shi'ur)",         adv:1,opp:2,prin:"C",sec:"A"},
+        {label:"Protocolo Kauyon — La Trampa Paciente (Kor'vesa)",     adv:2,opp:0,prin:"B",sec:"C"},
+      ],
+    },
+    objs:{
+      NL: [{k:"A",t:"Completar el ritual"},{k:"B",t:"Saquear containers"},{k:"C",t:"Controlar restos de nave"}],
+      TAU:[{k:"A",t:"Detener el ritual"},{k:"B",t:"Saquear depósitos"},{k:"C",t:"Evacuar civiles"}],
+    },
+    rewards:{
+      NL:{
+        "0-A":"350 pts Core Troops / Heroes con «Cultist» en el nombre (ritual completado)",
+        "0-B":"75 pts por botín en posesión al final de R4 · Vehicles / Light Vehicles",
+        "1-B":"125 pts por botín en posesión al final de R4 · Vehicles / Light Vehicles",
+        "1-C":"150 pts mejoras de unidades + tirada de persistencia de heridas mejora a 3+",
+        "2-C":"225 pts mejoras de unidades + tirada de persistencia de heridas mejora a 2+",
+        "2-A":"200 pts Core Troops / Heroes con «Cultist» en el nombre",
+      },
+      TAU:{
+        "0-A":"400 pts Vehicles / Light Vehicles (zona estabilizada)",
+        "0-B":"50 pts por botín en posesión al final de R4 · mejoras + tirada persistencia 3+",
+        "1-C":"350 pts Heroes / Core Units con «Grunt» en el nombre (civiles rescatados)",
+        "1-A":"250 pts Vehicles / Light Vehicles (zona estabilizada)",
+        "2-B":"100 pts por botín en posesión al final de R4 · mejoras + tirada persistencia 2+",
+        "2-C":"200 pts Heroes / Core Units con «Grunt» en el nombre",
+      },
+    }
+  },
+  {
+    id:"R1M3", round:1, label:"Mesa 3 — Comodín",
+    f1:"UM", f1info: FACTIONS.UM,
+    f2:null, comodin:"Tiránidos",
+    dirs:{
+      UM:[
+        {label:"Protocolo Punta de Lanza (Teniente Voss)",          adv:0,opp:2,prin:"A",sec:"B"},
+        {label:"Protocolo Línea Inquebrantable (Comisario Thenn)",   adv:1,opp:0,prin:"B",sec:"C"},
+        {label:"Protocolo Sigma — Clasificado (Inquisidora Vel'Sharen)", adv:2,opp:1,prin:"C",sec:"A"},
+      ],
+    },
+    objs:{
+      UM:[{k:"A",t:"Destruir el nodo sináptico"},{k:"B",t:"Mantener la antena operativa"},{k:"C",t:"Extraer muestras del nodo"}],
+    },
+    rewards:{
+      UM:{
+        "0-A":"300 pts Battle Brothers (amenaza tiránida eliminada)",
+        "0-B":"200 pts Human Defense Force (comunicaciones preservadas)",
+        "1-B":"300 pts Human Defense Force (línea aguantada)",
+        "1-C":"200 pts Human Inquisition (muestras obtenidas)",
+        "2-C":"300 pts Human Inquisition (datos obtenidos para el Ordo)",
+        "2-A":"200 pts Battle Brothers (nodo destruido)",
+      },
+    }
+  },
+  {
+    id:"R1M4", round:1, label:"Mesa 4 — Segunda Roka",
+    special:"Segunda partida orkos. Nuevo Kaudillo: Dregfang Hidegore. Gizwort es obligatorio en lista. Si Gizwort sobrevive → héroe gratuito permanente (no cuenta contra el límite de lista). Si muere → se pierde para siempre.",
+    f1:"OR2", f1info:{ name:"Brooooomka Morka (2.ª Roka)", player:"Dregfang Hidegore", icon:"💀", color:"#6abf6a" },
+    f2:null, comodin:"Death Korps de Krieg",
+    dirs:{
+      OR2:[
+        {label:"I — ¡A Romperle la Kara a To'z! (Urgbak)",         adv:0,opp:1,prin:"B",sec:"A"},
+        {label:"II — Toda eza Chatarra va a Zer Mía (Buzzgob)",     adv:1,opp:2,prin:"A",sec:"C"},
+        {label:"III — Gizwort tiene un Plan (Gizwort)",             adv:2,opp:0,prin:"D",sec:"A"},
+      ],
+    },
+    objs:{
+      OR2:[
+        {k:"A",t:"Saquear containers (6 en mesa)"},
+        {k:"B",t:"Masacrar a la guarnición (75% ptos Krieg)"},
+        {k:"C",t:"Destruir generadores de Promethium (4 gen.)"},
+        {k:"D",t:"Gizwort sobrevive al final",special:true},
+      ],
+    },
+    rewards:{
+      OR2:{
+        "0-B":"350 pts Core Units / Heroes (Ork Marauders) — la masacre electriza al WAAAGH!",
+        "0-A":"25 pts por container poseído · máx 150 pts · Vehicles / Light Vehicles (Ork Marauders)",
+        "1-A":"75 pts por container poseído · máx 450 pts · Vehicles / Light Vehicles",
+        "1-C":"25 pts por generador destruido · máx 100 pts · Core Units / Heroes",
+        "2-D":"Gizwort héroe gratuito permanente + 300 pts Core Units / Heroes (Goblin Reclaimers)",
+        "2-A":"25 pts por container poseído · máx 150 pts · Vehicles / Light Vehicles (Goblin Reclaimers)",
+      },
+    }
+  },
+];
+
+// ═══════════════════════════════════════════════════════════
+// SUPABASE
+// ═══════════════════════════════════════════════════════════
+const STORAGE_KEY = 'netharon_state';
+let supabase = null;
+
+function getCredentials() {
+  return {
+    url: localStorage.getItem('sb_url'),
+    key: localStorage.getItem('sb_key'),
+  };
+}
+
+function initSupabase(url, key) {
+  supabase = window.supabase.createClient(url, key);
+}
+
+async function saveSetup() {
+  const url = document.getElementById('setup-url').value.trim();
+  const key = document.getElementById('setup-key').value.trim();
+  document.getElementById('setup-error').style.display = 'none';
+  if (!url || !key) return;
+  try {
+    initSupabase(url, key);
+    // test connection
+    const { error } = await supabase.from('campaign').select('key').limit(1);
+    if (error && error.code !== 'PGRST116') throw error;
+    localStorage.setItem('sb_url', url);
+    localStorage.setItem('sb_key', key);
+    document.getElementById('setup-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    await loadState();
+  } catch(e) {
+    document.getElementById('setup-error').style.display = 'block';
+    console.error(e);
+  }
+}
+
+let saveTimer = null;
+function setSyncStatus(s, msg) {
+  const el = document.getElementById('sync-status');
+  el.className = 'sync-indicator ' + s;
+  el.textContent = msg;
+}
+
+async function saveState() {
+  setSyncStatus('saving', '↑ guardando...');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      const { error } = await supabase.from('campaign').upsert({ key: STORAGE_KEY, value: JSON.stringify(state) });
+      if (error) throw error;
+      setSyncStatus('saved', '● guardado');
+    } catch(e) {
+      setSyncStatus('error', '● error al guardar');
+      console.error(e);
+    }
+  }, 700);
+}
+
+async function loadState() {
+  setSyncStatus('saving', 'cargando...');
+  try {
+    const { data, error } = await supabase.from('campaign').select('value').eq('key', STORAGE_KEY).single();
+    if (data && data.value) {
+      const loaded = JSON.parse(data.value);
+      state = { ...state, ...loaded };
+    }
+    setSyncStatus('saved', '● sincronizado');
+  } catch(e) {
+    setSyncStatus('error', '● sin datos — empezando de cero');
+  }
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let state = {
+  activeRound: 1,
+  matches: {},
+  reputation: { PI:[0,0,0], OR:[0,0,0], NL:[0,0,0], TAU:[0,0,0], UM:[0,0,0] },
+  rewards: [],
+};
+
+function getMS(id) {
+  if (!state.matches[id]) state.matches[id] = {};
+  return state.matches[id];
+}
+
+// ═══════════════════════════════════════════════════════════
+// ROUTING
+// ═══════════════════════════════════════════════════════════
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-'+id).classList.add('active');
+  const renders = { resumen: renderResumen, rondas: () => renderRondas(state.activeRound), reputacion: renderReputacion, recompensas: renderRecompensas };
+  renders[id]?.();
+}
+
+function switchRound(n, btn) {
+  document.querySelectorAll('.round-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  state.activeRound = n;
+  document.getElementById('active-round-display').textContent = n;
+  renderRondas(n);
+  saveState();
+}
+
+function renderAll() {
+  document.getElementById('active-round-display').textContent = state.activeRound;
+  renderResumen();
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER — RESUMEN
+// ═══════════════════════════════════════════════════════════
+function calcPV(fKey) {
+  let t = 0;
+  Object.values(state.matches).forEach(m => { if (m['pv_'+fKey]) t += m['pv_'+fKey]; });
+  return t;
+}
+
+function renderResumen() {
+  const confirmed = Object.values(state.matches).filter(m => m.confirmed).length;
+  const totalPV = Object.keys(FACTIONS).reduce((s,f) => s + calcPV(f), 0);
+  document.getElementById('panel-resumen').innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-value">${state.activeRound}</div><div class="stat-label">Ronda activa</div></div>
+      <div class="stat-card"><div class="stat-value">${confirmed}</div><div class="stat-label">Partidas confirmadas</div></div>
+      <div class="stat-card"><div class="stat-value">${state.rewards.length}</div><div class="stat-label">Recompensas</div></div>
+      <div class="stat-card"><div class="stat-value">${totalPV}</div><div class="stat-label">PV totales</div></div>
+    </div>
+    <div class="sep"></div>
+    <div class="faction-grid">
+      ${Object.entries(FACTIONS).map(([k,f]) => {
+        const pv = calcPV(k);
+        const rep = state.reputation[k]||[0,0,0];
+        const repNet = rep.reduce((a,b)=>a+b,0);
+        const rew = state.rewards.filter(r=>r.faction===k).length;
+        return `<div class="faction-card">
+          <div class="faction-header">
+            <div class="faction-icon" style="color:${f.color};border-color:${f.color}25">${f.icon}</div>
+            <div><div class="faction-name" style="color:${f.color}">${f.name}</div><div class="faction-player">${f.player}</div></div>
+          </div>
+          <div class="faction-stats">
+            <div><div class="faction-stat-val" style="color:${f.color}">${pv}</div><div class="faction-stat-lbl">PV totales</div></div>
+            <div><div class="faction-stat-val" style="color:${repNet>=0?'#2ecc71':'#c0392b'}">${repNet>=0?'+':''}${repNet}</div><div class="faction-stat-lbl">Rep. neta</div></div>
+            <div><div class="faction-stat-val" style="color:var(--text-dim)">${rew}</div><div class="faction-stat-lbl">Recompensas</div></div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER — RONDAS
+// ═══════════════════════════════════════════════════════════
+function renderRondas(r) {
+  const matches = MATCHES.filter(m => m.round === r);
+  const roundTabs = [1,2,3,4].map(n =>
+    `<button class="round-tab ${n===r?'active':''}" onclick="switchRound(${n},this)">Ronda ${n}</button>`
+  ).join('');
+  const content = matches.length
+    ? matches.map(m => renderMatchCard(m)).join('')
+    : `<div class="empty-state">Ronda ${r} — emparejamientos pendientes de configurar.</div>`;
+  document.getElementById('panel-rondas').innerHTML = `
+    <div class="round-header">
+      <div class="round-title">Registro de partidas</div>
+      <div class="round-tabs">${roundTabs}</div>
+    </div>${content}`;
+}
+
+function renderMatchCard(match) {
+  const ms = getMS(match.id);
+  const confirmed = !!ms.confirmed;
+  const f1k = match.f1;
+  const f1 = match.f1info;
+  const f2 = match.f2 ? match.f2info : null;
+  const f2k = match.f2;
+
+  const playerBlock = (fk, finfo) => {
+    const dirs = match.dirs[fk]||[];
+    const dirIdx = ms['dir_'+fk];
+    const pv = ms['pv_'+fk]||0;
+    const opts = dirs.map((d,i) =>
+      `<option value="${i}" ${dirIdx==i?'selected':''}>${d.label}</option>`
+    ).join('');
+    return `<div class="player-block">
+      <div class="player-name" style="color:${finfo.color}">${finfo.icon} ${finfo.name}</div>
+      <div class="player-role">${finfo.player}</div>
+      ${dirs.length ? `<div class="field-label">Directiva elegida</div>
+      <select ${confirmed?'disabled':''} onchange="setDir('${match.id}','${fk}',this.value)">
+        <option value="">— pendiente —</option>${opts}
+      </select>` : `<div style="font-size:0.7rem;color:var(--text-dim);font-family:'Courier New',monospace;margin-top:8px;">Director de Campaña</div>`}
+      <div class="pv-pill">${pv} PV</div>
+    </div>`;
+  };
+
+  const comodinBlock = `<div class="player-block">
+    <div class="player-name" style="color:var(--text-dim)">⬡ ${match.comodin||'Comodín'}</div>
+    <div class="player-role">Director de Campaña</div>
+  </div>`;
+
+  const objSection = (fk) => {
+    const objs = match.objs[fk]||[];
+    const dirIdx = ms['dir_'+fk];
+    const dir = dirIdx!=null && dirIdx!=='' ? (match.dirs[fk]||[])[parseInt(dirIdx)] : null;
+    const ach = ms['ach_'+fk]||[];
+    const finfo = fk==='OR2' ? match.f1info : (FACTIONS[fk]||match.f1info);
+    const btns = objs.map(o => {
+      const isAch = ach.includes(o.k);
+      let hint = '';
+      if (dir) { if(dir.prin===o.k) hint=' [P]'; else if(dir.sec===o.k) hint=' [S]'; }
+      return `<button class="obj-btn ${isAch?'achieved':''} ${o.special?'special-obj':''}" ${confirmed?'disabled':''} onclick="toggleObj('${match.id}','${fk}','${o.k}')">${o.k} — ${o.t}${hint}</button>`;
+    }).join('');
+    const preview = dir ? rewardPreview(match, fk, dir, ach) : '';
+    return `<div class="obj-section">
+      <div class="section-label">${finfo.name} — objetivos conseguidos</div>
+      <div class="obj-grid">${btns}</div>${preview}
+    </div>`;
+  };
+
+  const statusColor = confirmed ? '#2ecc71' : (ms['dir_'+f1k]!=null ? '#c9a84c' : '#3d3d44');
+
+  return `<div class="match-card">
+    <div class="match-title">
+      <span class="status-dot" style="background:${statusColor}"></span>
+      ${match.label}
+      ${match.special ? '<span class="badge badge-gold">SEGUNDA ROKA</span>' : ''}
+    </div>
+    ${match.special ? `<div class="note-box">${match.special}</div>` : ''}
+    <div class="match-players">
+      ${playerBlock(f1k, f1)}
+      <div class="vs-col">
+        <span>VS</span>
+        <span style="font-size:0.6rem;margin-top:4px;">${ms['pv_'+f1k]||0} / ${f2k?ms['pv_'+f2k]||0:'—'}</span>
+      </div>
+      ${f2 ? playerBlock(f2k, f2) : comodinBlock}
+    </div>
+    ${objSection(f1k)}
+    ${f2k ? objSection(f2k) : ''}
+    ${confirmed
+      ? `<div class="confirmed-banner">✓ Resultados confirmados</div>
+         <button class="confirm-btn danger" onclick="unconfirm('${match.id}')">Desbloquear para editar</button>`
+      : `<button class="confirm-btn" onclick="confirm_('${match.id}')">Confirmar y aplicar resultados →</button>`
+    }
+  </div>`;
+}
+
+function rewardPreview(match, fk, dir, ach) {
+  const rmap = match.rewards[fk]||{};
+  const lines = [];
+  if (ach.includes(dir.prin)) {
+    const rw = rmap[`${dir.adv}-${dir.prin}`] || rmap[dir.prin];
+    if (rw) lines.push(`<span class="rp-label-p">▲ Principal (${dir.prin}):</span> ${rw}`);
+  }
+  if (ach.includes(dir.sec)) {
+    const rw = rmap[`${dir.adv}-${dir.sec}`] || rmap[dir.sec];
+    if (rw) lines.push(`<span class="rp-label-s">▼ Secundario (${dir.sec}):</span> ${rw}`);
+  }
+  if (!lines.length) return '';
+  return `<div class="reward-preview">${lines.join('<br>')}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// ACTIONS — RONDAS
+// ═══════════════════════════════════════════════════════════
+function setDir(matchId, fk, value) {
+  const ms = getMS(matchId);
+  ms['dir_'+fk] = value==='' ? null : parseInt(value);
+  saveState();
+  renderRondas(state.activeRound);
+}
+
+function toggleObj(matchId, fk, key) {
+  const ms = getMS(matchId);
+  if (ms.confirmed) return;
+  const arr = ms['ach_'+fk]||[];
+  const i = arr.indexOf(key);
+  if (i>=0) arr.splice(i,1); else arr.push(key);
+  ms['ach_'+fk] = arr;
+  saveState();
+  renderRondas(state.activeRound);
+}
+
+function confirm_(matchId) {
+  const match = MATCHES.find(m=>m.id===matchId);
+  const ms = getMS(matchId);
+  const fks = [match.f1, match.f2].filter(Boolean);
+
+  fks.forEach(fk => {
+    const dirIdx = ms['dir_'+fk];
+    if (dirIdx==null || dirIdx==='') return;
+    const dir = (match.dirs[fk]||[])[parseInt(dirIdx)];
+    if (!dir) return;
+    const ach = ms['ach_'+fk]||[];
+    let pv = 0;
+    if (ach.includes(dir.prin)) pv+=3;
+    if (ach.includes(dir.sec)) pv+=1;
+    ms['pv_'+fk] = pv;
+
+    const baseFk = fk==='OR2' ? 'OR' : fk;
+    const rep = state.reputation[baseFk];
+    if (rep) { rep[dir.adv]+=1; rep[dir.opp]-=1; }
+
+    const pushReward = (type, obj) => state.rewards.push({
+      id: `${Date.now()}_${fk}_${type}`, faction: baseFk,
+      match: matchId, round: match.round, type, directive: dir.label, dirAdv: dir.adv, obj
+    });
+
+    if (ach.includes(dir.prin)) pushReward('principal', dir.prin);
+    if (ach.includes(dir.sec))  pushReward('secundario', dir.sec);
+
+    // special objectives (like Gizwort)
+    (match.objs[fk]||[]).filter(o=>o.special && ach.includes(o.k) && o.k!==dir.prin && o.k!==dir.sec)
+      .forEach(o => pushReward('especial', o.k));
+  });
+
+  ms.confirmed = true;
+  saveState();
+  renderRondas(state.activeRound);
+  renderResumen();
+}
+
+function unconfirm(matchId) {
+  const match = MATCHES.find(m=>m.id===matchId);
+  const ms = getMS(matchId);
+  state.rewards = state.rewards.filter(r=>r.match!==matchId);
+  const fks = [match.f1, match.f2].filter(Boolean);
+  fks.forEach(fk => {
+    const dirIdx = ms['dir_'+fk];
+    if (dirIdx==null) return;
+    const dir = (match.dirs[fk]||[])[parseInt(dirIdx)];
+    if (!dir) return;
+    const baseFk = fk==='OR2' ? 'OR' : fk;
+    const rep = state.reputation[baseFk];
+    if (rep) { rep[dir.adv]-=1; rep[dir.opp]+=1; }
+    ms['pv_'+fk] = 0;
+  });
+  ms.confirmed = false;
+  saveState();
+  renderRondas(state.activeRound);
+  renderResumen();
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER — REPUTACIÓN
+// ═══════════════════════════════════════════════════════════
+function renderReputacion() {
+  document.getElementById('panel-reputacion').innerHTML = `<div class="faction-grid">
+    ${Object.entries(FACTIONS).map(([k,f]) => {
+      const rep = state.reputation[k]||[0,0,0];
+      const rows = f.advisors.map((adv,i) => {
+        const v = rep[i];
+        const pct = Math.min(Math.abs(v)/5*50, 50);
+        const color = v>0 ? '#2ecc71' : v<0 ? '#c0392b' : 'var(--text-faint)';
+        return `<div class="rep-row">
+          <div class="rep-name">${adv}</div>
+          <div class="rep-bar">
+            <div class="rep-center"></div>
+            <div class="rep-fill" style="width:${pct}%;background:${color};${v<0?'right:50%':'left:50%'};"></div>
+          </div>
+          <div class="rep-val" style="color:${color}">${v>0?'+':''}${v}</div>
+          <div class="rep-btns">
+            <button class="rep-btn" onclick="adjRep('${k}',${i},-1)">−</button>
+            <button class="rep-btn" style="color:${f.color}" onclick="adjRep('${k}',${i},1)">+</button>
+          </div>
+        </div>`;
+      }).join('');
+      return `<div class="faction-card">
+        <div class="faction-header">
+          <div class="faction-icon" style="color:${f.color};border-color:${f.color}25">${f.icon}</div>
+          <div><div class="faction-name" style="color:${f.color}">${f.name}</div><div class="faction-player">${f.player}</div></div>
+        </div>
+        <div style="margin-top:10px;"><div class="section-label">Reputación con consejeros</div>${rows}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function adjRep(k,i,d) {
+  state.reputation[k][i]+=d;
+  saveState();
+  renderReputacion();
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER — RECOMPENSAS
+// ═══════════════════════════════════════════════════════════
+function renderRecompensas() {
+  const el = document.getElementById('panel-recompensas');
+  if (!state.rewards.length) {
+    el.innerHTML = '<div class="empty-state">Ninguna recompensa registrada aún.<br>Confirma los resultados de una partida para generarlas.</div>';
+    return;
+  }
+  const grouped = {};
+  state.rewards.forEach(r => { (grouped[r.faction]||(grouped[r.faction]=[])).push(r); });
+  el.innerHTML = `<div class="rewards-list">
+    ${Object.entries(grouped).map(([fk,rewards]) => {
+      const f = FACTIONS[fk]||{name:fk,color:'#c9a84c',icon:'?'};
+      return rewards.map(r => {
+        const match = MATCHES.find(m=>m.id===r.match);
+        const fkInMatch = (fk==='OR' && r.match==='R1M4') ? 'OR2' : fk;
+        const rmap = match?.rewards[fkInMatch]||{};
+        const rtext = rmap[`${r.dirAdv}-${r.obj}`] || rmap[r.obj] || 'Consultar documento de briefing.';
+        const typeClass = {principal:'rt-principal',secundario:'rt-secundario',especial:'rt-especial'}[r.type]||'rt-secundario';
+        const typeLabel = {principal:'▲ Principal',secundario:'▼ Secundario',especial:'★ Especial'}[r.type]||r.type;
+        return `<div class="reward-card">
+          <div class="reward-header">
+            <div class="reward-faction" style="color:${f.color}">${f.icon} ${f.name}</div>
+            <div class="reward-meta">Ronda ${r.round} · ${match?.label||''}</div>
+          </div>
+          <div class="reward-directive">${r.directive}</div>
+          <span class="reward-type ${typeClass}">${typeLabel} — Obj. ${r.obj}</span>
+          <div class="reward-text">${rtext}</div>
+          <button class="remove-btn" onclick="removeReward('${r.id}')">Eliminar</button>
+        </div>`;
+      }).join('');
+    }).join('')}
+  </div>`;
+}
+
+function removeReward(id) {
+  state.rewards = state.rewards.filter(r=>r.id!==id);
+  saveState();
+  renderRecompensas();
+}
+
+// ═══════════════════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════════════════
+const PASS_HASH = '61e0fcf0d19c793f74dd4eb2010e0b3cdbcabd5bdce2b7c776f4931133198f05';
+const PASS_SALT = 'netharon2024xk9';
+const SESSION_KEY = 'netharon_auth';
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function doLogin() {
+  const val = document.getElementById('login-input').value;
+  const err = document.getElementById('login-error');
+  const hash = await sha256(PASS_SALT + val);
+  if (hash === PASS_HASH) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    document.getElementById('login-screen').style.display = 'none';
+    err.textContent = '';
+    proceedAfterAuth();
+  } else {
+    document.getElementById('login-input').value = '';
+    err.textContent = 'Contraseña incorrecta.';
+    document.getElementById('login-input').focus();
+  }
+}
+
+function isAuthed() {
+  return sessionStorage.getItem(SESSION_KEY) === '1';
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+function proceedAfterAuth() {
+  const creds = getCredentials();
+  if (creds.url && creds.key) {
+    initSupabase(creds.url, creds.key);
+    document.getElementById('app').style.display = 'block';
+    loadState();
+  } else {
+    document.getElementById('setup-screen').style.display = 'block';
+  }
+}
+
+(function init() {
+  if (isAuthed()) {
+    proceedAfterAuth();
+  } else {
+    document.getElementById('login-screen').style.display = 'block';
+    setTimeout(() => document.getElementById('login-input').focus(), 100);
+  }
+})();
+</script>
+</body>
+</html>

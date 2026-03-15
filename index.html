@@ -722,10 +722,12 @@ const MATCHES = [
       },
       TAU:{
         "0-A":"400 pts Vehicles / Light Vehicles (zona estabilizada)",
-        "0-B":"50 pts por botín en posesión al final de R4 · mejoras + tirada persistencia 3+",
+        "0-B":"50 pts por botín en posesión al final de R4 · mejoras de unidades",
+        "0-B-bonus":"Si además se consigue el objetivo: tirada de persistencia de heridas mejora a 3+",
         "1-C":"350 pts Heroes / Core Units con «Grunt» en el nombre (civiles rescatados)",
         "1-A":"250 pts Vehicles / Light Vehicles (zona estabilizada)",
-        "2-B":"100 pts por botín en posesión al final de R4 · mejoras + tirada persistencia 2+",
+        "2-B":"100 pts por botín en posesión al final de R4 · mejoras de unidades",
+        "2-B-bonus":"Si además se consigue el objetivo: tirada de persistencia de heridas mejora a 2+",
         "2-C":"200 pts Heroes / Core Units con «Grunt» en el nombre",
       },
     }
@@ -1049,6 +1051,9 @@ function rewardPreview(match, fk, dir, ach, qtys) {
       }
     }
     lines.push(`${label} ${rw}${suffix}`);
+    // bonus line — only shown when objective is achieved
+    const bonus = rmap[`${dir.adv}-${objKey}-bonus`];
+    if (bonus) lines.push(`<span style="color:var(--green);font-size:0.7rem;">✓ Bonus por objetivo conseguido:</span> ${bonus}`);
   });
 
   // qty objectives outside directiva: reward is always granted regardless of PV
@@ -1121,16 +1126,24 @@ function confirm_(matchId) {
 
     const pushReward = (type, obj) => {
       const qtys = ms['qty_'+fk]||{};
-      const objDef = (match.objs[fk]||[]).find(o=>o.k===obj);
-      const qty = (objDef && objDef.qty) ? (qtys[obj]||0) : null;
+      const baseObj = obj.replace('-bonus','');
+      const objDef = (match.objs[fk]||[]).find(o=>o.k===baseObj);
+      const qty = (objDef && objDef.qty && type !== 'bonus') ? (qtys[baseObj]||0) : null;
       state.rewards.push({
         id: `${Date.now()}_${fk}_${type}`, faction: baseFk,
         match: matchId, round: match.round, type, directive: dir.label, dirAdv: dir.adv, obj, qty
       });
     };
 
-    if (ach.includes(dir.prin)) pushReward('principal', dir.prin);
-    if (ach.includes(dir.sec))  pushReward('secundario', dir.sec);
+    if (ach.includes(dir.prin)) {
+      pushReward('principal', dir.prin);
+      // register bonus if exists (e.g. TAU persistence bonus when objective fully achieved)
+      if ((match.rewards[fk]||{})[`${dir.adv}-${dir.prin}-bonus`]) pushReward('bonus', dir.prin+'-bonus');
+    }
+    if (ach.includes(dir.sec)) {
+      pushReward('secundario', dir.sec);
+      if ((match.rewards[fk]||{})[`${dir.adv}-${dir.sec}-bonus`]) pushReward('bonus', dir.sec+'-bonus');
+    }
 
     // special objectives (like Gizwort)
     (match.objs[fk]||[]).filter(o=>o.special && ach.includes(o.k) && o.k!==dir.prin && o.k!==dir.sec)
@@ -1234,9 +1247,10 @@ function renderRecompensas() {
         const match = MATCHES.find(m=>m.id===r.match);
         const fkInMatch = (fk==='OR' && r.match==='R1M4') ? 'OR2' : fk;
         const rmap = match?.rewards[fkInMatch]||{};
-        const rtext = rmap[`${r.dirAdv}-${r.obj}`] || rmap[r.obj] || 'Consultar documento de briefing.';
-        const typeClass = {principal:'rt-principal',secundario:'rt-secundario',especial:'rt-especial',cantidad:'rt-secundario'}[r.type]||'rt-secundario';
-        const typeLabel = {principal:'▲ Principal',secundario:'▼ Secundario',especial:'★ Especial',cantidad:'◆ Cantidad'}[r.type]||r.type;
+        const rtextKey = r.type === 'bonus' ? `${r.dirAdv}-${r.obj}` : (`${r.dirAdv}-${r.obj}` in rmap ? `${r.dirAdv}-${r.obj}` : r.obj);
+        const rtext = rmap[rtextKey] || rmap[r.obj] || 'Consultar documento de briefing.';
+        const typeClass = {principal:'rt-principal',secundario:'rt-secundario',especial:'rt-especial',cantidad:'rt-secundario',bonus:'rt-especial'}[r.type]||'rt-secundario';
+        const typeLabel = {principal:'▲ Principal',secundario:'▼ Secundario',especial:'★ Especial',cantidad:'◆ Cantidad',bonus:'✓ Bonus'}[r.type]||r.type;
         return `<div class="reward-card">
           <div class="reward-header">
             <div class="reward-faction" style="color:${f.color}">${f.icon} ${f.name}</div>

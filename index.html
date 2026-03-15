@@ -636,7 +636,7 @@
 <body>
 
 <!-- LOGIN SCREEN -->
-<div id="login-screen" style="display:none">
+<div id="login-screen">
   <span class="login-sigil">⬡</span>
   <h2>La Fractura de Netharon</h2>
   <p>Centro de Mando — Acceso restringido</p>
@@ -839,7 +839,7 @@ const MATCHES = [
 // SUPABASE
 // ═══════════════════════════════════════════════════════════
 const STORAGE_KEY = 'netharon_state';
-let supabase = null;
+let sbClient = null;
 
 function getCredentials() {
   return {
@@ -849,7 +849,7 @@ function getCredentials() {
 }
 
 function initSupabase(url, key) {
-  supabase = window.supabase.createClient(url, key);
+  sbClient = window.supabase.createClient(url, key);
 }
 
 async function saveSetup() {
@@ -860,7 +860,7 @@ async function saveSetup() {
   try {
     initSupabase(url, key);
     // test connection
-    const { error } = await supabase.from('campaign').select('key').limit(1);
+    const { error } = await sbClient.from('campaign').select('key').limit(1);
     if (error && error.code !== 'PGRST116') throw error;
     localStorage.setItem('sb_url', url);
     localStorage.setItem('sb_key', key);
@@ -885,7 +885,7 @@ async function saveState() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try {
-      const { error } = await supabase.from('campaign').upsert({ key: STORAGE_KEY, value: JSON.stringify(state) });
+      const { error } = await sbClient.from('campaign').upsert({ key: STORAGE_KEY, value: JSON.stringify(state) });
       if (error) throw error;
       setSyncStatus('saved', '● guardado');
     } catch(e) {
@@ -898,7 +898,7 @@ async function saveState() {
 async function loadState() {
   setSyncStatus('saving', 'cargando...');
   try {
-    const { data, error } = await supabase.from('campaign').select('value').eq('key', STORAGE_KEY).single();
+    const { data, error } = await sbClient.from('campaign').select('value').eq('key', STORAGE_KEY).single();
     if (data && data.value) {
       const loaded = JSON.parse(data.value);
       state = { ...state, ...loaded };
@@ -1314,9 +1314,9 @@ function proceedAfterAuth() {
 
 (function init() {
   if (isAuthed()) {
+    document.getElementById('login-screen').style.display = 'none';
     proceedAfterAuth();
   } else {
-    document.getElementById('login-screen').style.display = 'block';
     setTimeout(() => document.getElementById('login-input').focus(), 100);
   }
 })();

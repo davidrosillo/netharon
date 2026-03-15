@@ -879,9 +879,18 @@ function renderAll() {
 // ═══════════════════════════════════════════════════════════
 // RENDER — RESUMEN
 // ═══════════════════════════════════════════════════════════
+// Faction aliases: some matches use a variant key (e.g. OR2) that belongs to the base faction (OR)
+const FK_ALIASES = { OR2: 'OR' };
+const FK_VARIANTS = Object.entries(FK_ALIASES).reduce((acc, [alias, base]) => {
+  (acc[base] = acc[base]||[]).push(alias); return acc;
+}, {});
+
 function calcPV(fKey) {
   let t = 0;
-  Object.values(state.matches).forEach(m => { if (m['pv_'+fKey]) t += m['pv_'+fKey]; });
+  const keys = [fKey, ...(FK_VARIANTS[fKey]||[])];
+  Object.values(state.matches).forEach(m => {
+    keys.forEach(k => { if (m['pv_'+k]) t += m['pv_'+k]; });
+  });
   return t;
 }
 
@@ -1283,8 +1292,9 @@ function renderRanking() {
     const rep = state.reputation[k] || [0,0,0];
     const repNet = rep.reduce((a,b)=>a+b,0);
     const rew = state.rewards.filter(r=>r.faction===k).length;
+    const allKeys = [k, ...(FK_VARIANTS[k]||[])];
     const confirmed = Object.entries(state.matches)
-      .filter(([,m]) => m.confirmed && (m['pv_'+k] !== undefined))
+      .filter(([,m]) => m.confirmed && allKeys.some(fk => m['pv_'+fk] !== undefined))
       .length;
     return { k, f, pv, repNet, rew, confirmed };
   }).sort((a,b) => b.pv - a.pv || a.f.name.localeCompare(b.f.name, 'es'));

@@ -708,8 +708,8 @@ const MATCHES = [
       ],
     },
     objs:{
-      NL: [{k:"A",t:"Completar el ritual"},{k:"B",t:"Saquear containers"},{k:"C",t:"Controlar restos de nave"}],
-      TAU:[{k:"A",t:"Detener el ritual"},{k:"B",t:"Saquear depósitos"},{k:"C",t:"Evacuar civiles"}],
+      NL: [{k:"A",t:"Completar el ritual"},{k:"B",t:"Saquear containers",qty:{max:4,unit:"botín"}},{k:"C",t:"Controlar restos de nave"}],
+      TAU:[{k:"A",t:"Detener el ritual"},{k:"B",t:"Saquear depósitos",qty:{max:4,unit:"botín"}},{k:"C",t:"Evacuar civiles"}],
     },
     rewards:{
       NL:{
@@ -769,9 +769,9 @@ const MATCHES = [
     },
     objs:{
       OR2:[
-        {k:"A",t:"Saquear containers (6 en mesa)"},
+        {k:"A",t:"Saquear containers (6 en mesa)",qty:{max:6,unit:"container"}},
         {k:"B",t:"Masacrar a la guarnición (75% ptos Krieg)"},
-        {k:"C",t:"Destruir generadores de Promethium (4 gen.)"},
+        {k:"C",t:"Destruir generadores de Promethium (4 gen.)",qty:{max:4,unit:"generador"}},
         {k:"D",t:"Gizwort sobrevive al final",special:true},
       ],
     },
@@ -969,17 +969,30 @@ function renderMatchCard(match) {
     const dirIdx = ms['dir_'+fk];
     const dir = dirIdx!=null && dirIdx!=='' ? (match.dirs[fk]||[])[parseInt(dirIdx)] : null;
     const ach = ms['ach_'+fk]||[];
+    const qtys = ms['qty_'+fk]||{};
     const finfo = fk==='OR2' ? match.f1info : (FACTIONS[fk]||match.f1info);
-    const btns = objs.map(o => {
+    const items = objs.map(o => {
       const isAch = ach.includes(o.k);
       let hint = '';
       if (dir) { if(dir.prin===o.k) hint=' [P]'; else if(dir.sec===o.k) hint=' [S]'; }
-      return `<button class="obj-btn ${isAch?'achieved':''} ${o.special?'special-obj':''}" ${confirmed?'disabled':''} onclick="toggleObj('${match.id}','${fk}','${o.k}')">${o.k} — ${o.t}${hint}</button>`;
+      const btn = `<button class="obj-btn ${isAch?'achieved':''} ${o.special?'special-obj':''}" ${confirmed?'disabled':''} onclick="toggleObj('${match.id}','${fk}','${o.k}')">${o.k} — ${o.t}${hint}</button>`;
+      if (o.qty) {
+        const qval = qtys[o.k]||0;
+        // qty counter always visible — reward is independent of whether objective counts for PV
+        const qinput = `<div style="display:inline-flex;align-items:center;gap:6px;vertical-align:middle;margin-left:4px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:2px 6px;">
+          <button style="width:18px;height:18px;font-size:12px;cursor:pointer;border:none;background:none;color:var(--text-dim);line-height:1;" ${confirmed?'disabled':''} onclick="adjQty('${match.id}','${fk}','${o.k}',-1,${o.qty.max})">−</button>
+          <span style="font-family:'Courier New',monospace;font-size:0.8rem;color:var(--gold);min-width:14px;text-align:center;">${qval}</span>
+          <span style="font-size:0.6rem;color:var(--text-faint);font-family:'Courier New',monospace;">/${o.qty.max} ${o.qty.unit}</span>
+          <button style="width:18px;height:18px;font-size:12px;cursor:pointer;border:none;background:none;color:var(--text-dim);line-height:1;" ${confirmed?'disabled':''} onclick="adjQty('${match.id}','${fk}','${o.k}',1,${o.qty.max})">+</button>
+        </div>`;
+        return `<div style="display:inline-flex;align-items:center;flex-wrap:wrap;gap:0;">${btn}${qinput}</div>`;
+      }
+      return btn;
     }).join('');
-    const preview = dir ? rewardPreview(match, fk, dir, ach) : '';
+    const preview = dir ? rewardPreview(match, fk, dir, ach, qtys) : '';
     return `<div class="obj-section">
       <div class="section-label">${finfo.name} — objetivos conseguidos</div>
-      <div class="obj-grid">${btns}</div>${preview}
+      <div class="obj-grid">${items}</div>${preview}
     </div>`;
   };
 
@@ -1010,17 +1023,47 @@ function renderMatchCard(match) {
   </div>`;
 }
 
-function rewardPreview(match, fk, dir, ach) {
+function rewardPreview(match, fk, dir, ach, qtys) {
+  qtys = qtys||{};
   const rmap = match.rewards[fk]||{};
+  const objs = match.objs[fk]||[];
   const lines = [];
-  if (ach.includes(dir.prin)) {
-    const rw = rmap[`${dir.adv}-${dir.prin}`] || rmap[dir.prin];
-    if (rw) lines.push(`<span class="rp-label-p">▲ Principal (${dir.prin}):</span> ${rw}`);
-  }
-  if (ach.includes(dir.sec)) {
-    const rw = rmap[`${dir.adv}-${dir.sec}`] || rmap[dir.sec];
-    if (rw) lines.push(`<span class="rp-label-s">▼ Secundario (${dir.sec}):</span> ${rw}`);
-  }
+
+  // PV objectives in directiva (principal / secundario)
+  [dir.prin, dir.sec].forEach((objKey, idx) => {
+    if (!ach.includes(objKey)) return;
+    const rw = rmap[`${dir.adv}-${objKey}`] || rmap[objKey];
+    if (!rw) return;
+    const label = idx===0
+      ? `<span class="rp-label-p">▲ Principal (${objKey}):</span>`
+      : `<span class="rp-label-s">▼ Secundario (${objKey}):</span>`;
+    const objDef = objs.find(o=>o.k===objKey);
+    let suffix = '';
+    if (objDef && objDef.qty) {
+      const q = qtys[objKey]||0;
+      const m2 = rw.match(/(\d+)\s*pts?\s+por/i);
+      if (m2 && q > 0) {
+        suffix = ` <span style="color:var(--gold);font-weight:bold;">→ ${parseInt(m2[1])*q} pts (${q} ${objDef.qty.unit})</span>`;
+      } else if (q === 0) {
+        suffix = ` <span style="color:var(--text-faint)">(introduce la cantidad)</span>`;
+      }
+    }
+    lines.push(`${label} ${rw}${suffix}`);
+  });
+
+  // qty objectives outside directiva: reward is always granted regardless of PV
+  objs.filter(o => o.qty && o.k !== dir.prin && o.k !== dir.sec).forEach(o => {
+    const q = qtys[o.k]||0;
+    const rw = rmap[`${dir.adv}-${o.k}`] || rmap[o.k];
+    if (!rw) return;
+    const m2 = rw.match(/(\d+)\s*pts?\s+por/i);
+    const qLabel = `<span style="color:var(--text-dim)">◆ ${o.k} (recompensa independiente):</span>`;
+    const suffix = q > 0 && m2
+      ? ` <span style="color:var(--gold);font-weight:bold;">→ ${parseInt(m2[1])*q} pts (${q} ${o.qty.unit})</span>`
+      : ` <span style="color:var(--text-faint)">(introduce la cantidad)</span>`;
+    lines.push(`${qLabel} ${rw}${suffix}`);
+  });
+
   if (!lines.length) return '';
   return `<div class="reward-preview">${lines.join('<br>')}</div>`;
 }
@@ -1046,6 +1089,16 @@ function toggleObj(matchId, fk, key) {
   renderRondas(state.activeRound);
 }
 
+function adjQty(matchId, fk, key, delta, max) {
+  const ms = getMS(matchId);
+  if (ms.confirmed) return;
+  if (!ms['qty_'+fk]) ms['qty_'+fk] = {};
+  const cur = ms['qty_'+fk][key]||0;
+  ms['qty_'+fk][key] = Math.max(0, Math.min(max, cur + delta));
+  saveState();
+  renderRondas(state.activeRound);
+}
+
 function confirm_(matchId) {
   const match = MATCHES.find(m=>m.id===matchId);
   const ms = getMS(matchId);
@@ -1066,10 +1119,15 @@ function confirm_(matchId) {
     const rep = state.reputation[baseFk];
     if (rep) { rep[dir.adv]+=1; rep[dir.opp]-=1; }
 
-    const pushReward = (type, obj) => state.rewards.push({
-      id: `${Date.now()}_${fk}_${type}`, faction: baseFk,
-      match: matchId, round: match.round, type, directive: dir.label, dirAdv: dir.adv, obj
-    });
+    const pushReward = (type, obj) => {
+      const qtys = ms['qty_'+fk]||{};
+      const objDef = (match.objs[fk]||[]).find(o=>o.k===obj);
+      const qty = (objDef && objDef.qty) ? (qtys[obj]||0) : null;
+      state.rewards.push({
+        id: `${Date.now()}_${fk}_${type}`, faction: baseFk,
+        match: matchId, round: match.round, type, directive: dir.label, dirAdv: dir.adv, obj, qty
+      });
+    };
 
     if (ach.includes(dir.prin)) pushReward('principal', dir.prin);
     if (ach.includes(dir.sec))  pushReward('secundario', dir.sec);
@@ -1077,6 +1135,17 @@ function confirm_(matchId) {
     // special objectives (like Gizwort)
     (match.objs[fk]||[]).filter(o=>o.special && ach.includes(o.k) && o.k!==dir.prin && o.k!==dir.sec)
       .forEach(o => pushReward('especial', o.k));
+
+    // qty-based rewards: register for any graduated objective with qty > 0,
+    // even if the objective itself doesn't count for PV (not in directiva or not achieved)
+    (match.objs[fk]||[]).filter(o => o.qty).forEach(o => {
+      const qty = (ms['qty_'+fk]||{})[o.k]||0;
+      if (qty === 0) return;
+      // avoid duplicate if already registered above as principal/secundario
+      const alreadyPushed = (o.k===dir.prin && ach.includes(dir.prin)) || (o.k===dir.sec && ach.includes(dir.sec));
+      if (alreadyPushed) return;
+      pushReward('cantidad', o.k);
+    });
   });
 
   ms.confirmed = true;
@@ -1166,8 +1235,8 @@ function renderRecompensas() {
         const fkInMatch = (fk==='OR' && r.match==='R1M4') ? 'OR2' : fk;
         const rmap = match?.rewards[fkInMatch]||{};
         const rtext = rmap[`${r.dirAdv}-${r.obj}`] || rmap[r.obj] || 'Consultar documento de briefing.';
-        const typeClass = {principal:'rt-principal',secundario:'rt-secundario',especial:'rt-especial'}[r.type]||'rt-secundario';
-        const typeLabel = {principal:'▲ Principal',secundario:'▼ Secundario',especial:'★ Especial'}[r.type]||r.type;
+        const typeClass = {principal:'rt-principal',secundario:'rt-secundario',especial:'rt-especial',cantidad:'rt-secundario'}[r.type]||'rt-secundario';
+        const typeLabel = {principal:'▲ Principal',secundario:'▼ Secundario',especial:'★ Especial',cantidad:'◆ Cantidad'}[r.type]||r.type;
         return `<div class="reward-card">
           <div class="reward-header">
             <div class="reward-faction" style="color:${f.color}">${f.icon} ${f.name}</div>
@@ -1175,7 +1244,15 @@ function renderRecompensas() {
           </div>
           <div class="reward-directive">${r.directive}</div>
           <span class="reward-type ${typeClass}">${typeLabel} — Obj. ${r.obj}</span>
-          <div class="reward-text">${rtext}</div>
+          <div class="reward-text">${rtext}${(() => {
+            if (r.qty == null) return '';
+            const m2 = rtext.match(/(\d+)\s*pts?\s+por/i);
+            if (m2) {
+              const total = parseInt(m2[1]) * r.qty;
+              return `<span style="display:block;margin-top:4px;font-family:'Courier New',monospace;color:var(--gold);font-size:0.9rem;">→ ${total} pts <span style="color:var(--text-dim);font-size:0.75rem;">(${r.qty} unidades)</span></span>`;
+            }
+            return '';
+          })()}</div>
           <button class="remove-btn" onclick="removeReward('${r.id}')">Eliminar</button>
         </div>`;
       }).join('');
@@ -1196,7 +1273,7 @@ function renderRanking() {
       .filter(([,m]) => m.confirmed && (m['pv_'+k] !== undefined))
       .length;
     return { k, f, pv, repNet, rew, confirmed };
-  }).sort((a,b) => b.pv - a.pv || b.repNet - a.repNet);
+  }).sort((a,b) => b.pv - a.pv || a.f.name.localeCompare(b.f.name, 'es'));
 
   const maxPV = Math.max(...ranked.map(r=>r.pv), 1);
 
@@ -1242,7 +1319,7 @@ function renderRanking() {
     ? '<div class="empty-state">Sin datos aún.<br>Confirma los resultados de al menos una partida para ver el ranking.</div>'
     : `<div style="margin-bottom:1.25rem;">
         <div style="font-family:'Cinzel',serif;font-size:1rem;color:var(--gold);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.25rem;">Clasificación general</div>
-        <div style="font-size:0.7rem;color:var(--text-dim);font-family:'Courier New',monospace;">Ordenado por PV acumulados · empates resueltos por reputación neta</div>
+        <div style="font-size:0.7rem;color:var(--text-dim);font-family:'Courier New',monospace;">Ordenado por PV acumulados · empates resueltos alfabéticamente</div>
       </div>${rows}`;
 }
 

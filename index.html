@@ -829,7 +829,9 @@ async function loadState() {
       headers: { 'X-Master-Key': JB_KEY, 'X-Bin-Meta': 'false' },
     });
     if (!res.ok) throw new Error(res.status);
-    const loaded = await res.json();
+    const json = await res.json();
+    // JSONBin wraps response in { record: {...} } when X-Bin-Meta is not honoured
+    const loaded = json.record || json;
     if (loaded && typeof loaded === 'object') {
       state = { ...state, ...loaded };
     }

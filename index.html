@@ -6,7 +6,6 @@
   <title>La Fractura de Netharon — Centro de Mando</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     /* ── TOKENS ─────────────────────────────────────────── */
     :root {
@@ -791,12 +790,11 @@ const MATCHES = [
 ];
 
 // ═══════════════════════════════════════════════════════════
-// SUPABASE
+// JSONBIN
 // ═══════════════════════════════════════════════════════════
-const STORAGE_KEY = 'netharon_state';
-const SB_URL = 'https://hqdybmjmjfiabfyonlyj.supabase.co';
-const SB_KEY = 'sb_publishable_5Hk2LS-MrR2b7-fCb3qjwA_6uZghUnR';
-const sbClient = window.supabase.createClient(SB_URL, SB_KEY);
+const JB_BIN = '69c27268aa77b81da914754f';
+const JB_KEY = '$2a$10$jXOKuXkZj9KobYdde60Wi.i3DEqCiYyc.cmeh03vwdHZ8eLi6VnhS';
+const JB_URL = `https://api.jsonbin.io/v3/b/${JB_BIN}`;
 
 let saveTimer = null;
 function setSyncStatus(s, msg) {
@@ -810,8 +808,12 @@ async function saveState() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try {
-      const { error } = await sbClient.from('campaign').upsert({ key: STORAGE_KEY, value: JSON.stringify(state) });
-      if (error) throw error;
+      const res = await fetch(JB_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Master-Key': JB_KEY },
+        body: JSON.stringify(state),
+      });
+      if (!res.ok) throw new Error(res.status);
       setSyncStatus('saved', '● guardado');
     } catch(e) {
       setSyncStatus('error', '● error al guardar');
@@ -823,14 +825,18 @@ async function saveState() {
 async function loadState() {
   setSyncStatus('saving', 'cargando...');
   try {
-    const { data, error } = await sbClient.from('campaign').select('value').eq('key', STORAGE_KEY).single();
-    if (data && data.value) {
-      const loaded = JSON.parse(data.value);
+    const res = await fetch(JB_URL + '/latest', {
+      headers: { 'X-Master-Key': JB_KEY, 'X-Bin-Meta': 'false' },
+    });
+    if (!res.ok) throw new Error(res.status);
+    const loaded = await res.json();
+    if (loaded && typeof loaded === 'object') {
       state = { ...state, ...loaded };
     }
     setSyncStatus('saved', '● sincronizado');
   } catch(e) {
     setSyncStatus('error', '● sin datos — empezando de cero');
+    console.error(e);
   }
   renderAll();
 }

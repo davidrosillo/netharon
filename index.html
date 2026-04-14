@@ -787,13 +787,138 @@ const MATCHES = [
       },
     }
   },
+
+  // ── RONDA 2 ────────────────────────────────────────────────────────
+  {
+    id:"R2M1", round:2, label:"Mesa 1 — Ronda 2",
+    f1:"NL", f1info: FACTIONS.NL,
+    f2:"UM", f2info: FACTIONS.UM,
+    dirs:{
+      NL:[
+        {label:"El Ritual Exige Llegar Primero (Magister Veyl)", adv:0,opp:2,prin:"A",sec:"B"},
+        {label:"Recursos Primero, Sangre Después (Apotecario Venn)", adv:1,opp:0,prin:"B",sec:"A"},
+        {label:"La Mujer Primero (Navegante Harrow)", adv:2,opp:1,prin:"C",sec:"B"},
+      ],
+      UM:[
+        {label:"Protocolo Punta de Lanza (Teniente Voss)", adv:0,opp:2,prin:"A",sec:"C"},
+        {label:"Protocolo Línea Inquebrantable (Comisario Thenn)", adv:1,opp:0,prin:"C",sec:"B"},
+        {label:"Protocolo Sigma — Clasificado (Inquisidora Vel'Sharen)", adv:2,opp:1,prin:"B",sec:"A"},
+      ],
+    },
+    objs:{
+      NL:[
+        {k:"A",t:"Ser el primero en descubrir el punto de acceso"},
+        {k:"B",t:"Eliminar unidades Core Troops humanas en CC",qty:{max:3,unit:"unidad"}},
+        {k:"C",t:"La Inquisidora Vel'Sharen muere en CC"},
+      ],
+      UM:[
+        {k:"A",t:"Ser el primero en descubrir el punto de acceso"},
+        {k:"B",t:"Vel'Sharen es la primera miniatura en evacuar"},
+        {k:"C",t:"Investigar más ruinas que los Night Lords"},
+      ],
+    },
+    rewards:{
+      NL:{
+        "0-A":"270 pts Core Troops / Heroes con «Cultist» en el nombre (ritual completado)",
+        "0-B":"70 pts por unidad Core Troops humana eliminada en CC · máx 3 · mejoras de unidades",
+        "1-B":"165 pts por unidad Core Troops humana eliminada en CC · máx 3 · mejoras de unidades",
+        "1-A":"165 pts mejoras de unidades (primer contacto con el subsuelo)",
+        "2-C":"275 pts mejoras de unidades (la Inquisidora ha caído)",
+        "2-B":"75 pts por unidad Core Troops humana eliminada en CC · máx 3 · Core Troops / Heroes",
+      },
+      UM:{
+        "0-A":"300 pts Battle Brothers (primer acceso al subsuelo)",
+        "0-C":"200 pts Human Inquisition (reconocimiento sistemático de ruinas Aeldari)",
+        "1-C":"300 pts Human Defense Force (reconocimiento metódico del terreno)",
+        "1-B":"200 pts Human Inquisition (evacuación de la Inquisidora)",
+        "2-B":"300 pts Human Inquisition (protocolos del Ordo activados)",
+        "2-A":"200 pts Battle Brothers (primer contacto con tecnología del subsuelo)",
+      },
+    }
+  },
+  {
+    id:"R2M2", round:2, label:"Mesa 2 — Ronda 2",
+    f1:"OR", f1info: FACTIONS.OR,
+    f2:"TAU", f2info: FACTIONS.TAU,
+    dirs:{
+      OR:[
+        {label:"I — ¡A Por Elloz Antez ke Lleguen! (Urgbak)", adv:0,opp:1,prin:"A",sec:"B"},
+        {label:"II — La Chatarra Ezá Ahí Abaxo (Buzzgob)", adv:1,opp:2,prin:"B",sec:"A"},
+        {label:"III — Gizwort tiene un Plan (de nuevo) (Gizwort)", adv:2,opp:0,prin:"C",sec:"B"},
+      ],
+      TAU:[
+        {label:"Protocolo Mont'ka — Primer Contacto (Vash'ya)", adv:0,opp:1,prin:"A",sec:"C"},
+        {label:"Protocolo Tau'va — La Salida Ordenada (Shi'ur)", adv:1,opp:2,prin:"B",sec:"A"},
+        {label:"Protocolo Kauyon — La Trampa Paciente (Kor'vesa)", adv:2,opp:0,prin:"C",sec:"B"},
+      ],
+    },
+    objs:{
+      OR:[
+        {k:"A",t:"Ser el primero en descubrir el punto de acceso"},
+        {k:"B",t:"Evacuar más unidades que el jugador T'au"},
+        {k:"C",t:"Gizwort es la primera miniatura en evacuar",special:true},
+      ],
+      TAU:[
+        {k:"A",t:"Ser el primero en descubrir el punto de acceso"},
+        {k:"B",t:"Al menos 50% de unidades iniciales evacuan"},
+        {k:"C",t:"Investigar más ruinas que los Orkos",qty:{max:6,unit:"ruina"}},
+      ],
+    },
+    rewards:{
+      OR:{
+        "0-A":"350 pts Core Units / Heroes (Ork Marauders) — ¡Electriza al WAAAGH!",
+        "0-B":"150 pts Vehicles / Light Vehicles (Ork Marauders)",
+        "1-B":"400 pts Vehicles / Light Vehicles (territorio orko confirmado)",
+        "1-A":"150 pts Core Units / Heroes (primer contacto tecnología subsuelo)",
+        "2-C":"300 pts Core Units / Heroes (Goblin Reclaimers) + habilidad permanente «El Primero»: una vez por partida, Gizwort y su unidad mueven 6" adicionales en su activación",
+        "2-B":"175 pts Vehicles / Light Vehicles (Goblin Reclaimers)",
+      },
+      TAU:{
+        "0-A":"350 pts Vehicles / Light Vehicles (información ruinas Aeldari)",
+        "0-C":"Regla especial: una vez por partida al inicio de ronda, todas las unidades ganan Fast (o +2" si ya la tienen) hasta final de esa ronda",
+        "1-B":"300 pts Heroes / Core Units (extracción exitosa del cadre)",
+        "1-A":"200 pts Vehicles / Light Vehicles (protocolos exploración avanzada)",
+        "2-C":"75 pts por ruina investigada por T'au al final de R4 · mejoras de unidades + tirada persistencia heridas mejora a 2+",
+        "2-B":"200 pts Heroes / Core Units (extracción parcial preserva capacidad operativa)",
+      },
+    }
+  },
+  {
+    id:"R2M3", round:2, label:"Mesa 3 — Ronda 2 (Comodín)",
+    f1:"PI", f1info: FACTIONS.PI,
+    f2:null, comodin:"Oleada de Afectados (DC)",
+    dirs:{
+      PI:[
+        {label:"I — El Muro que no Cede (Capellán Mordren)", adv:0,opp:2,prin:"A",sec:"B"},
+        {label:"II — El Bastión del Constructor (Tecnomarine Torvak)", adv:1,opp:0,prin:"C",sec:"A"},
+        {label:"III — Ninguno en Pie (Teniente Androm)", adv:2,opp:1,prin:"B",sec:"C"},
+      ],
+    },
+    objs:{
+      PI:[
+        {k:"A",t:"No más de 2 unidades enemigas alcanzan el punto de acceso"},
+        {k:"B",t:"Ningún enemigo a menos de 8" del punto de acceso al final"},
+        {k:"C",t:"Eliminar unidades de Boomers",qty:{max:4,unit:"Boomer"}},
+      ],
+    },
+    rewards:{
+      PI:{
+        "0-A":"Light Vehicle / Vehicle hasta 330 pts (punto de acceso sellado)",
+        "0-B":"Core Unit / Hero hasta 220 pts (solidez defensiva de la 56.ª)",
+        "1-C":"125 pts por Boomer eliminado · máx 4 · Vehicle / Light Vehicle",
+        "1-A":"1 barrera desplegable 8" (Scout) — unidades en cobertura +1 a disparar sin mover",
+        "2-B":"3 barreras desplegables 8" (Scout) + 90 pts mejoras de unidades existentes",
+        "2-C":"90 pts por Boomer eliminado · máx 4 · mejoras de unidades existentes",
+      },
+    }
+  },
 ];
 
 // ═══════════════════════════════════════════════════════════
 // JSONBIN
 // ═══════════════════════════════════════════════════════════
 const JB_BIN = '69c27268aa77b81da914754f';
-const JB_KEY = '$2a$10$DPDgROhgU1fcRlinqyd6vud9jnTNXBlL.RtiepvIOkH/Y07jZtsJ6';
+const JB_KEY = '$2a$10$jXOKuXkZj9KobYdde60Wi.i3DEqCiYyc.cmeh03vwdHZ8eLi6VnhS';
 const JB_URL = `https://api.jsonbin.io/v3/b/${JB_BIN}`;
 
 let saveTimer = null;
